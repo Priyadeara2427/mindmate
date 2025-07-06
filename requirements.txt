@@ -1,0 +1,7 @@
+streamlit
+google-generativeai
+python-dotenv
+pyrebase4
+transformers
+matplotlib
+reportlab
