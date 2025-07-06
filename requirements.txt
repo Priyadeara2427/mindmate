@@ -1,7 +1,6 @@
 streamlit
-pyrebase4
-python-dotenv
-transformers
-matplotlib
-reportlab
+firebase-admin
 google-generativeai
+matplotlib
+requests
+reportlab
