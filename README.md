@@ -1,6 +1,12 @@
 # 🧠 MindMate - Your Mental Wellness Companion
 
-MindMate is an AI-powered emotional support and journaling assistant designed to promote mental wellness through conversation, mood tracking, and self-reflection. Built with **Google Gemini**, **Firebase**, and **Streamlit**, this app helps users express their thoughts, detect emotions, and track their mental health over time.
+## Description of the local problem which MindMate solves.
+Mental health awareness and emotional well-being support remain limited, especially within college communities and local regions lacking easy access to professional counseling. Many individuals find it difficult to express or track their emotions consistently, which negatively impacts their mental health management. The challenge is to create an accessible, intuitive, and personalized tool that helps users better understand and monitor their emotional states over time, empowering proactive mental wellness.
+
+---
+
+## Overview
+MindMate is a web-based mental wellness companion designed to support emotional health through empathetic AI-driven conversation and data-driven insights. Leveraging Google technologies, MindMate provides a secure, interactive, and personalized environment where users can share their feelings, receive emotional understanding, and visualize their mood trends.
 
 ---
 
@@ -18,6 +24,12 @@ MindMate is an AI-powered emotional support and journaling assistant designed to
 ### 🧠 Emotion Detection
 - The chatbot detects the user's emotional tone from input and stores it for mood tracking and analysis.
 
+### 🌟 Positive Reinforcement Messages
+
+- Provides brief, supportive, and encouraging responses based on the user's emotional state.
+- Utilizes Gemini API to generate empathetic replies in real-time.
+- Aims to boost mood and promote mental well-being after detecting negative emotions.
+  
 ### 📊 Mood Tracker
 - Automatically logs your emotional state from each chat.
 - Visualizes emotional trends over time with charts.
@@ -27,6 +39,18 @@ MindMate is an AI-powered emotional support and journaling assistant designed to
 - Write freely and reflect on your thoughts.
 - Gemini summarizes your entries in a supportive tone.
 - Stores your journal privately in the cloud.
+
+### 🚨 Emergency Contact Alerts (Simulated)
+
+- Detects repeated low mood entries to trigger simulated alerts.
+- Displays in-app alert messages for pre-registered emergency contacts.
+- Real-time alerting via email/SMS is currently simulated and planned as a future enhancement.
+
+### 👫 Friends & Chat System (Simulated)
+
+- Allows users to add friends by email and chat inside the app interface.
+- Stores all chat data using Firebase Realtime Database.
+- Simulates a peer support network, though real-time messaging and notifications are yet to be implemented.
 
 ### 📂 My History
 - View past journal entries and summaries.
