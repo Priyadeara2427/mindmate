@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 from collections import Counter
 import datetime
 import requests
+import json
+import re
 
 st.set_page_config(page_title="🧠 MindMate")
 
@@ -71,49 +73,108 @@ else:
         st.rerun()
 
     st.sidebar.title("🧭 Navigate")
-    page = st.sidebar.radio("Go to", ["💬 Chatbot", "📊 Mood Tracker", "📘 Journal", "📂 My History"])
+    page = st.sidebar.radio("Go to", ["💬 Chatbot", "📊 Mood Tracker", "📘 Journal", "📂 My History", "📞 Emergency Setup", "🤝 My Friends"])
 
     model = genai.GenerativeModel('gemini-1.5-pro')
     chat = model.start_chat(history=[])
 
     if page == "💬 Chatbot":
         st.title("💬 MindMate Gemini Chatbot")
-        input = st.text_input("What's on your mind?", key="input")
+        user_input = st.text_area("What's on your mind?", height=100, key="input")
         submit = st.button("Ask")
 
-        if submit and input:
+        if submit and user_input:
             # === Emotion Detection using Gemini ===
-            emotion_prompt = f"What is the most likely emotion in this sentence: \"{input}\"? Reply only with the emotion name."
+
+            emotion_prompt = f"""
+            You are an emotion classification AI.
+
+            Classify the following sentence into one of the exact options from this list:
+            ["happy", "sad", "angry", "anxious", "calm", "neutral", "excited", "bored", "frustrated"]
+
+            Text: "{user_input}"
+
+            Respond ONLY with valid JSON in this format:
+            {{ "emotion": "<chosen_category_from_list>", "score": <confidence_between_0_and_1> }}
+
+            Do not explain. Do not include anything else.
+            """
             try:
                 response = model.generate_content(emotion_prompt)
-                predicted_emotion = response.text.strip()
-                emotion_score = 1.0  # dummy confidence for consistency
+
+                # Check if response is empty or None
+                if not response.text:
+                    raise ValueError("Gemini returned empty response")
+
+                raw_text = response.text.strip()
+                # Remove markdown code fences if any (fix #1)
+                clean_json = re.sub(r"^```(?:json)?|```$", "", raw_text).strip()
+                parsed = json.loads(clean_json)
+                predicted_emotion = parsed.get("emotion", "neutral").lower()
+                emotion_score = parsed.get("score", 0.0)
+
+                # Validate allowed emotions (fix #2)
+                allowed_emotions = ["happy", "sad", "angry", "anxious", "calm", "neutral", "excited", "bored", "frustrated"]
+                if predicted_emotion not in allowed_emotions:
+                    predicted_emotion = "neutral"
+                    emotion_score = 0.0
+
+                # Optional debug logging (fix #5)
+                # st.write("🔍 Raw Gemini output:", response.text)
+
             except Exception as e:
-                st.error(f"Emotion detection failed: {e}")
-                predicted_emotion = "Unknown"
+                st.error(f"Emotion classification failed: {e}")
+                predicted_emotion = "neutral"
                 emotion_score = 0.0
 
-            st.info(f"🧠 Detected Emotion: **{predicted_emotion}** ({emotion_score:.2f})")
+            st.info(f"🧠 Detected Emotion: **{predicted_emotion}**")
+            reinforcement_prompt = f"Give a brief, supportive and motivational message for someone who is feeling {predicted_emotion.lower()}."
+
+            try:
+                reinforcement_response = model.generate_content(reinforcement_prompt)
+                if not reinforcement_response.text:
+                    raise ValueError("Gemini returned empty reinforcement message")
+                reinforcement_message = reinforcement_response.text.strip()
+            except Exception:
+                reinforcement_message = "Keep going, you're doing your best. Take one step at a time."
+
+            st.success(f"💡 **MindMate Tip:** {reinforcement_message}")
+
             st.session_state.mood_log.append(predicted_emotion)
 
             timestamp = datetime.datetime.now().isoformat()
             ref = db.reference(f"moods/{user_id}")
             ref.push({
                 "mood": predicted_emotion,
-                "score": round(emotion_score, 2),
+                "score": emotion_score,
                 "timestamp": timestamp
             })
 
-            prompt = f"The user is feeling {predicted_emotion.lower()}. Respond with empathy.\n\n{input}"
+            # === Emergency Mood Check: If user has 3+ consecutive negative moods
+            low_moods = {"sad", "angry", "anxious", "frustrated", "depressed"}
+            recent_moods = db.reference(f"moods/{user_id}").order_by_key().limit_to_last(5).get()
+
+            if recent_moods:
+                low_mood_count = sum(1 for m in recent_moods.values() if m.get("mood", "").lower() in low_moods)
+                if low_mood_count >= 3:
+                    st.warning("⚠️ Multiple low mood entries detected.")
+                    emergency_contacts = db.reference(f"emergency_contacts/{user_id}").get()
+                    if emergency_contacts:
+                        for contact in emergency_contacts.values():
+                            st.info(f"📨 Alert prepared for: {contact.get('name','')} ({contact.get('email','')})")
+                            # Future scope: Send actual email alerts using a cloud function or SMTP
+                    else:
+                        st.info("No emergency contacts added.")
+
+            prompt = f"The user is feeling {predicted_emotion.lower()}. Respond with empathy.\n\n{user_input}"
             response = chat.send_message(prompt, stream=True)
 
-            st.session_state.chat_history.append(("You", input))
+            st.session_state.chat_history.append(("You", user_input))
             st.subheader("🧠 Gemini Responds:")
             full_response = ""
             for chunk in response:
                 full_response += chunk.text
 
-            import re
             cleaned = " ".join(full_response.split()).strip()
             sentences = re.split(r'(?<=[.!?]) +', cleaned)
             st.write(" ".join(sentences))
@@ -162,12 +223,13 @@ else:
             else:
                 mood_log = [entry.get("mood", "") for entry in moods.values()]
                 mood_counts = Counter(mood_log)
+
                 labels = list(mood_counts.keys())
                 values = list(mood_counts.values())
 
                 fig, ax = plt.subplots()
                 ax.bar(labels, values, color="orchid")
-                ax.set_ylabel("Count")
+                ax.set_ylabel("Count")  # fix #3: This is count of moods
                 ax.set_title("Your Emotional Trends")
                 st.pyplot(fig)
         except Exception as e:
@@ -219,3 +281,129 @@ else:
                     st.write(f"🗓️ {m.get('timestamp', 'N/A')} — {m.get('mood', '')} ({m.get('score', '')})")
         except Exception as e:
             st.error(f"Error loading mood logs: {e}")
+    
+    elif page == "📞 Emergency Setup":
+        st.title("📞 Emergency Contact Settings")
+
+        if "contact_name" not in st.session_state:
+            st.session_state.contact_name = ""
+        if "contact_email" not in st.session_state:
+            st.session_state.contact_email = ""
+
+        contact_name = st.text_input("Contact Name", value=st.session_state.contact_name, key="contact_name_input")
+        contact_email = st.text_input("Contact Email", value=st.session_state.contact_email, key="contact_email_input")
+
+        if st.button("Save Contact"):
+            contacts_ref = db.reference(f"emergency_contacts/{user_id}")
+            existing_contacts = contacts_ref.get() or {}
+
+            duplicate = any(c.get("email", "").lower() == contact_email.lower() for c in existing_contacts.values())
+
+            if duplicate:
+                st.warning("⚠️ This contact is already saved.")
+            elif contact_name.strip() == "" or contact_email.strip() == "":
+                st.warning("❗ Both fields are required.")
+            else:
+                contacts_ref.push({
+                    "name": contact_name.strip(),
+                    "email": contact_email.strip()
+                })
+                st.success("✅ Emergency contact saved.")
+
+                # Clear input fields
+                st.session_state.contact_name = ""
+                st.session_state.contact_email = ""
+                st.rerun()
+
+        st.subheader("📋 Your Emergency Contacts")
+        contacts = db.reference(f"emergency_contacts/{user_id}").get()
+        if contacts:
+            for c in contacts.values():
+                st.write(f"👤 {c.get('name', '')} — ✉️ {c.get('email', '')}")
+        else:
+            st.info("No contacts added yet.")
+
+    elif page == "🤝 My Friends":
+        st.title("🤝 Connect with Friends")
+
+        if "friend_email" not in st.session_state:
+            st.session_state.friend_email = ""
+        if "active_chat_friend" not in st.session_state:
+            st.session_state.active_chat_friend = None
+        if "chat_messages" not in st.session_state:
+            st.session_state.chat_messages = []
+
+        friend_email = st.text_input("Add Friend by Email", value=st.session_state.friend_email, key="friend_email_input")
+
+        if st.button("Add Friend"):
+            try:
+                friend_user = auth.get_user_by_email(friend_email)
+                friend_uid = friend_user.uid
+
+                friends_ref = db.reference(f"friends/{user_id}")
+                existing_friends = friends_ref.get() or {}
+
+                already_added = any(f.get("email", "").lower() == friend_email.lower() for f in existing_friends.values())
+
+                if already_added:
+                    st.warning("⚠️ This friend is already added.")
+                elif friend_uid == user_id:
+                    st.warning("❌ You cannot add yourself.")
+                else:
+                    friends_ref.push({
+                        "friend_uid": friend_uid,
+                        "email": friend_email.strip()
+                    })
+                    st.success(f"✅ {friend_email} added as a friend.")
+                    st.session_state.friend_email = ""
+                    st.rerun()
+            except Exception:
+                st.error("❌ User not found.")
+
+        st.subheader("👥 Your Friends")
+        friends = db.reference(f"friends/{user_id}").get()
+        friend_list = []
+        if friends:
+            for fkey, f in friends.items():
+                friend_list.append((fkey, f.get('email', ''), f.get('friend_uid', '')))
+
+            # Select friend to chat with
+            selected = st.selectbox("Select a friend to chat", options=[f[1] for f in friend_list])
+            selected_friend = next((f for f in friend_list if f[1] == selected), None)
+            if selected_friend:
+                st.session_state.active_chat_friend = selected_friend
+
+                # Reference for reading messages with ordering
+                chat_query_ref = db.reference(f"chats/{user_id}/{selected_friend[2]}").order_by_child("timestamp")
+                messages = chat_query_ref.get() or {}
+                st.session_state.chat_messages = sorted(messages.values(), key=lambda x: x.get("timestamp", ""))
+
+                st.subheader(f"💬 Chat with {selected_friend[1]}")
+
+                for msg in st.session_state.chat_messages:
+                    sender = "You" if msg.get("sender") == user_id else selected_friend[1]
+                    st.write(f"**{sender}:** {msg.get('text')}")
+
+                # Input box to send message
+                new_msg = st.text_area("Type your message:", height=80, key="friend_msg_input")
+                if st.button("Send Message"):
+                    if new_msg.strip() == "":
+                        st.warning("Please enter a message.")
+                    else:
+                        timestamp = datetime.datetime.now().isoformat()
+                        message_data = {
+                            "sender": user_id,
+                            "text": new_msg.strip(),
+                            "timestamp": timestamp
+                        }
+                        # Reference for writing message (without order_by_child)
+                        chat_write_ref = db.reference(f"chats/{user_id}/{selected_friend[2]}")
+                        chat_write_ref.push(message_data)
+
+                        # Also save message under friend's chat so they can see it
+                        friend_chat_write_ref = db.reference(f"chats/{selected_friend[2]}/{user_id}")
+                        friend_chat_write_ref.push(message_data)
+
+                        st.rerun()
+        else:
+            st.info("No friends added yet.")
