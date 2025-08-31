@@ -40,17 +40,19 @@ MindMate is a web-based mental wellness companion designed to support emotional 
 - Gemini summarizes your entries in a supportive tone.
 - Stores your journal privately in the cloud.
 
-### 🚨 Emergency Contact Alerts (Simulated)
+### 🚨 Emergency Contact Alerts
 
-- Detects repeated low mood entries to trigger simulated alerts.
-- Displays in-app alert messages for pre-registered emergency contacts.
-- Real-time alerting via email/SMS is currently simulated and planned as a future enhancement.
+- Detects repeated low mood entries (4 consecutive low moods) and automatically sends alerts to pre-registered emergency contacts via email.  
+- Fully functional: emails are sent in real-time to contacts, helping ensure timely support.  
+- Users can manage their emergency contacts directly inside the app.
 
-### 👫 Friends & Chat System (Simulated)
+### 👫 Friends & Chat System
 
-- Allows users to add friends by email and chat inside the app interface.
-- Stores all chat data using Firebase Realtime Database.
-- Simulates a peer support network, though real-time messaging and notifications are yet to be implemented.
+- Allows users to add friends by email and chat securely inside the app interface.  
+- Messages are encrypted end-to-end using Fernet and stored in Firebase Realtime Database.  
+- Fully functional real-time chat with auto-refresh every 3 seconds.  
+- Chat input clears automatically after sending a message for smooth user experience.  
+- Users can view chat history and download it as a PDF.
 
 ### 📂 My History
 - View past journal entries and summaries.
